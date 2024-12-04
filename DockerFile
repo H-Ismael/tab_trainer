@@ -1,0 +1,26 @@
+# Use an official Python runtime as a parent image
+FROM nvidia/cuda:12.1.1-base-ubuntu22.04
+
+# Set the working directory
+RUN apt-get update && apt-get install -y python3-pip python3-dev curl
+
+# Install Poetry
+RUN pip install --upgrade --no-cache-dir pip \
+    && pip install --no-cache-dir poetry==1.8.2
+
+WORKDIR /tabular_trainer_api
+
+# Copy the Poetry configuration files
+COPY ./pyproject.toml ./poetry.lock* /tabular_trainer_api/
+
+# Configure Poetry: Disable virtual environments creation
+RUN poetry config virtualenvs.create false && poetry lock && poetry install
+
+# Install dependencies using Poetry
+RUN poetry install --no-dev
+
+# Copy the rest of application files
+COPY ./tabular_trainer_api /tabular_trainer_api
+
+# Run app.py when the container launches
+CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "40007"]
