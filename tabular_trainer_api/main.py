@@ -3,7 +3,11 @@ from fastapi.responses import JSONResponse
 import logging
 from typing import Optional
 from training import train_svc, train_xgboost
-import torch
+import subprocess
+
+# Todo: - where file is uploaded - where file is saved - where file is deleted
+# Todo: - stop point of training (treshold on metric and or training number)
+# Todo: - metrics to optimize
 
 app = FastAPI()
 
@@ -12,8 +16,21 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Check for GPU
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-logger.info(f"Using device: {device}")
+def check_gpu_available():
+    try:
+        result = subprocess.run(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        logger.info(result.stdout.decode('utf-8'))
+        if result.returncode == 0:
+            logger.info("GPU is available.")
+            return True
+        else:
+            logger.info("GPU not available.")
+            return False
+    except FileNotFoundError:
+        logger.info("nvidia-smi command not found. GPU not available.")
+        return False
+
+gpu_available = check_gpu_available()
 
 @app.post("/train/svc")
 async def train_svc_endpoint(
@@ -26,6 +43,7 @@ async def train_svc_endpoint(
     hyperparams: Optional[str] = Form(None)  # JSON string of hyperparameters
 ):
     try:
+        # check_gpu_available()
         # Call training function
         metrics = train_svc(
             data_file.file,
@@ -60,7 +78,8 @@ async def train_xgboost_endpoint(
             test_size,
             random_state,
             use_optuna,
-            hyperparams
+            hyperparams,
+            gpu_available
         )
         return JSONResponse(content=metrics)
     except Exception as e:
