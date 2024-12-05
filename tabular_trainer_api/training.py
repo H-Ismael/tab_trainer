@@ -4,6 +4,8 @@ from typing import Optional, IO
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 from sklearn.svm import SVC
+import optuna
+import xgboost as xgb
 import joblib
 import json
 
@@ -16,7 +18,8 @@ def train_svc(
     test_size: float,
     random_state: int,
     use_optuna: bool,
-    hyperparams: Optional[str]
+    hyperparams: Optional[str],
+    n_trials: int = 10,
 ):
     logger.info("Starting SVC training")
 
@@ -54,8 +57,6 @@ def train_svc(
 
     if use_optuna:
         # Perform hyperparameter optimization with Optuna
-        import optuna
-
         def objective(trial):
             C = trial.suggest_float('C', 1e-5, 1e2, log=True)
             gamma = trial.suggest_float('gamma', 1e-5, 1e1, log=True)
@@ -66,7 +67,7 @@ def train_svc(
             return f1
 
         study = optuna.create_study(direction='maximize')
-        study.optimize(objective, n_trials=50)
+        study.optimize(objective, n_trials=n_trials)
 
         best_params = study.best_params
         logger.info(f"Best hyperparameters found: {best_params}")
@@ -108,7 +109,8 @@ def train_xgboost(
     random_state: int,
     use_optuna: bool,
     hyperparams: Optional[str],
-    gpu_available: bool
+    n_trials: int = 10
+    # gpu_available: bool
 ):
     logger.info("Starting XGBoost training")
 
@@ -135,13 +137,14 @@ def train_xgboost(
     X_test = test_data.drop(columns=[label_column])
     y_test = test_data[label_column]
 
-    # Use GPU if available
-    if gpu_available:
-        tree_method = 'gpu_hist'
-        logger.info("Using GPU for XGBoost training")
-    else:
-        tree_method = 'hist'
-        logger.info("GPU not available. Using CPU for XGBoost training")
+    # # Use GPU if available
+    # if gpu_available:
+    #     tree_method = 'gpu_hist'
+    #     logger.info("Using GPU for XGBoost training")
+    # else:
+    #     tree_method = 'hist'
+    #     logger.info("GPU not available. Using CPU for XGBoost training")
+    tree_method = 'gpu_hist'
 
     # Parse hyperparameters
     if hyperparams:
@@ -151,19 +154,18 @@ def train_xgboost(
 
     if use_optuna:
         # Perform hyperparameter optimization with Optuna
-        import optuna
-        import xgboost as xgb
 
         def objective(trial):
             param = {
-                'tree_method': tree_method,
+                # 'tree_method': tree_method,
                 'max_depth': trial.suggest_int('max_depth', 3, 10),
                 'learning_rate': trial.suggest_float('learning_rate', 1e-5, 1.0, log=True),
                 'n_estimators': trial.suggest_int('n_estimators', 50, 500),
                 'gamma': trial.suggest_float('gamma', 1e-8, 1.0, log=True),
                 'reg_alpha': trial.suggest_float('reg_alpha', 1e-8, 1.0, log=True),
                 'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 1.0, log=True),
-                'random_state': random_state
+                'random_state': random_state,
+                'device': 'cuda'
             }
 
             model = xgb.XGBClassifier(**param)
@@ -173,16 +175,15 @@ def train_xgboost(
             return f1
 
         study = optuna.create_study(direction='maximize')
-        study.optimize(objective, n_trials=50)
+        study.optimize(objective, n_trials=n_trials)
 
         best_params = study.best_params
-        best_params['tree_method'] = tree_method
+        # best_params['tree_method'] = tree_method
         best_params['random_state'] = random_state
         logger.info(f"Best hyperparameters found: {best_params}")
         model = xgb.XGBClassifier(**best_params)
     else:
-        import xgboost as xgb
-        hyperparams['tree_method'] = tree_method
+        # hyperparams['tree_method'] = tree_method
         hyperparams['random_state'] = random_state
         model = xgb.XGBClassifier(**hyperparams)
         logger.info(f"Training XGBoost with hyperparameters: {hyperparams}")

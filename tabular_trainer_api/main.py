@@ -16,21 +16,21 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Check for GPU
-def check_gpu_available():
-    try:
-        result = subprocess.run(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        logger.info(result.stdout.decode('utf-8'))
-        if result.returncode == 0:
-            logger.info("GPU is available.")
-            return True
-        else:
-            logger.info("GPU not available.")
-            return False
-    except FileNotFoundError:
-        logger.info("nvidia-smi command not found. GPU not available.")
-        return False
+# def check_gpu_available():
+#     try:
+#         result = subprocess.run(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+#         logger.info(result.stdout.decode('utf-8'))
+#         if result.returncode == 0:
+#             logger.info("GPU is available.")
+#             return True
+#         else:
+#             logger.info("GPU not available.")
+#             return False
+#     except FileNotFoundError:
+#         logger.info("nvidia-smi command not found. GPU not available.")
+#         return False
 
-gpu_available = check_gpu_available()
+# gpu_available = check_gpu_available()
 
 @app.post("/train/svc")
 async def train_svc_endpoint(
@@ -40,7 +40,8 @@ async def train_svc_endpoint(
     test_size: float = Form(0.2),
     random_state: int = Form(42),
     use_optuna: bool = Form(False),
-    hyperparams: Optional[str] = Form(None)  # JSON string of hyperparameters
+    hyperparams: Optional[str] = Form(None),  # JSON string of hyperparameters
+    n_trials: Optional[int] = Form(10)
 ):
     try:
         # check_gpu_available()
@@ -52,7 +53,8 @@ async def train_svc_endpoint(
             test_size,
             random_state,
             use_optuna,
-            hyperparams
+            hyperparams,
+            n_trials
         )
         return JSONResponse(content=metrics)
     except Exception as e:
@@ -67,7 +69,8 @@ async def train_xgboost_endpoint(
     test_size: float = Form(0.2),
     random_state: int = Form(42),
     use_optuna: bool = Form(False),
-    hyperparams: Optional[str] = Form(None)  # JSON string of hyperparameters
+    hyperparams: Optional[str] = Form(None),  # JSON string of hyperparameters
+    n_trials: Optional[int] = Form(10)
 ):
     try:
         # Call training function
@@ -79,7 +82,7 @@ async def train_xgboost_endpoint(
             random_state,
             use_optuna,
             hyperparams,
-            gpu_available
+            n_trials
         )
         return JSONResponse(content=metrics)
     except Exception as e:
